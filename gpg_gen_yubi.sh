@@ -2,8 +2,12 @@
 # Run this on an air-gapped computer with an encrypted hard drive to set up GPG keys on your yubikey.
 # Derived from https://github.com/drduh/YubiKey-Guide
 # Assumes OS has already been prepared (packages, services, etc) -- see dr duh guide.
-# Does not configure PINs on the yubikey. If no admin pin is provided, the default 12345678 is used.
-# Some older Yubikeys do not support rsa4096. Change key_type to rsa2048.
+# Does not configure PINs on the yubikey.
+# 
+# This has been tested with Yubikey 5 NFC and ED25519 and Curve25519.
+# Refer to https://gist.github.com/o0-o/61e11c9928fd7698f1aaae55473e6456 for
+# rsa4096 (or rsa2048 for older Yubikeys) support.
+# 
 # The GPG key passphrase is randomly generated and printed to stderr at the end of the script.
 # Copy the backup tar.gz file to an encrypted drive.
 #
@@ -16,7 +20,7 @@ set -o posix || true #notably dash doesn't support this
 set -o pipefail || true #not technically posix but widely supported
 
 # Backup targets -- set these or the master key will be deleted permanently
-output="$3"
+output="$3" #by default, specify as "/mnt"
 crypt1="$output/crypt1" #entire GNUPGHOME directory is backed up to $crypt1 and $crypt2
 crypt2="$output/crypt2"
 pub1="$output/pub1" #public and revocation keys are copied to $pub1 and $pub2
@@ -31,6 +35,7 @@ passphrase="$(	dd if=/dev/urandom bs=1k count=1 2>/dev/null	|
 		LC_ALL=C tr -dc '\41\43-\46\60-\71\74-\132'	|
 		cut -c 1-24						)"
 key_type="ed25519"
+enc_key_type="cv25519"
 subkey_expire='2y'
 
 cd "$GNUPGHOME"
@@ -84,7 +89,7 @@ gpg	--batch				\
 	--pinentry-mode	'loopback'	\
 	--passphrase	"$passphrase"	\
 	--quick-add-key	"$fpr"		\
-			"cv25519"	\
+			"$enc_key_type"	\
 			'encrypt'	\
 			"$subkey_expire"
 
@@ -184,11 +189,11 @@ tar -czf "backup-$(date +%F).tar.gz" *
 cp "backup-"*".tar.gz" "$crypt1/backup_$(date +%F).tar.gz"
 cp "backup-"*".tar.gz" "$crypt2/backup-$(date +%F).tar.gz"
 
+echo ""
 echo "WRITE THIS DOWN IN A SECURE PLACE: $passphrase"
 echo ""
 
-# Print gpg key and yubi details
-#gpg --card-status
+# Print gpg key details
 gpg -K
 gpg --delete-secret-key
 
