@@ -10,8 +10,6 @@ resource, covering further advanced topics such as key-rotation etc.
 The approach taken here is to setup three (x3) Yubikeys as (i) a current key,
 (ii) a spare, and (iii) a last resort backup key, stored securely off-site.
 
-
-
 ## Generating a GPG Key
 
 Make sure you replace the placeholders below to generate the GPG key, 
