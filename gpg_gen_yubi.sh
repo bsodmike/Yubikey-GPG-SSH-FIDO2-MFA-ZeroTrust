@@ -189,8 +189,8 @@ echo ""
 
 # Print gpg key and yubi details
 #gpg --card-status
-#gpg -K
-#gpg --delete-secret-key
+gpg -K
+gpg --delete-secret-key
 
 cd
 
