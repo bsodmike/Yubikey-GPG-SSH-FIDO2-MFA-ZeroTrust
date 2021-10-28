@@ -77,27 +77,26 @@ gpg	--batch				\
 	--passphrase	"$passphrase"	\
 	--quick-add-key	"$fpr"		\
 			"$key_type"	\
+			'sign'		\
+			"$subkey_expire"
+
+gpg	--batch				\
+	--pinentry-mode	'loopback'	\
+	--passphrase	"$passphrase"	\
+	--quick-add-key	"$fpr"		\
+			"cv25519"	\
+			'encrypt'	\
+			"$subkey_expire"
+
+gpg	--batch				\
+	--pinentry-mode	'loopback'	\
+	--passphrase	"$passphrase"	\
+	--quick-add-key	"$fpr"		\
+			"$key_type"	\
 			'auth'		\
 			"$subkey_expire"
 
 echo "Created sub-keys"
-
-#gpg	--batch				\
-#	--pinentry-mode	'loopback'	\
-#	--passphrase	"$passphrase"	\
-#	--quick-add-key	"$fpr"		\
-#			"$key_type"	\
-#			'sign'		\
-#			"$subkey_expire"
-#
-#gpg	--batch				\
-#	--pinentry-mode	'loopback'	\
-#	--passphrase	"$passphrase"	\
-#	--quick-add-key	"$fpr"		\
-#			"$key_type"	\
-#			'encrypt'	\
-#			"$subkey_expire"
-
 
 # Exports
 printf	'%s\n'							\
@@ -185,13 +184,13 @@ tar -czf "backup-$(date +%F).tar.gz" *
 cp "backup-"*".tar.gz" "$crypt1/backup_$(date +%F).tar.gz"
 cp "backup-"*".tar.gz" "$crypt2/backup-$(date +%F).tar.gz"
 
-# Print gpg key and yubi details
-gpg --card-status
+echo "WRITE THIS DOWN IN A SECURE PLACE: $passphrase"
+echo ""
 
+# Print gpg key and yubi details
+#gpg --card-status
 #gpg -K
 #gpg --delete-secret-key
-
-echo "WRITE THIS DOWN IN A SECURE PLACE: $passphrase"
 
 cd
 
