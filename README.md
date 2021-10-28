@@ -38,6 +38,15 @@ gpg2 --export your.email@gmail.com |curl -T - https://keys.openpgp.org
 
 ## Copying GPG keys to your Yubikeys
 
+### Removing the local (private) secret key
+
+Once all the keys are prepared, make sure to delete the `secrete key`, held
+locally.
+
+```
+gpg2 --delete-secret-key EBC48BA7843592C3
+```
+
 ## Switching between two or more Yubikeys
 
 When you add a GPG key to a Yubikey using the keytocard command, GPG deletes the
