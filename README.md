@@ -11,6 +11,19 @@ The approach taken here is to setup three (x3) Yubikeys as (i) a current key,
 
 ## Generating a GPG Key
 
+Make sure you replace the placeholders below to generate the GPG key, 
+
+```
+./gpg_gen_yubi.sh "Your Name" "your.email@gmail.com" "/mnt"
+```
+
+This script will print the `passphrase` that's automatically generated.  You
+will need to store this securely; if you loose this passphrase, you will not be
+able to use your key anymore.
+
+Make sure you backup both the contents in `crypt1` and `pub1`, especially the
+revocation certificates.
+
 ## Uploading your key
 
 Use `gpg2 --list-signatures` to obtain the <HEX> key-id,
