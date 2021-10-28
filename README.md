@@ -38,3 +38,15 @@ gpg2 --export your.email@gmail.com |curl -T - https://keys.openpgp.org
 
 ## Copying GPG keys to your Yubikeys
 
+## Switching between two or more Yubikeys
+
+When you add a GPG key to a Yubikey using the keytocard command, GPG deletes the
+key from your keyring and adds a stub pointing to that exact Yubikey (the stub
+identifies the GPG KeyID and the Yubikey's serial number). Therefore, the last
+Yubikey written to, is the key the stub will point at.
+
+Run the following command to allow the currently inserted key to be used. [Refer to this guide](https://github.com/drduh/YubiKey-Guide#switching-between-two-or-more-yubikeys) for further details.
+
+```
+gpg-connect-agent "scd serialno" "learn --force" /bye
+```
