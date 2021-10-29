@@ -7,8 +7,21 @@ resource, covering further advanced topics such as key-rotation etc.
 
 ## Overview
 
-The approach taken here is to setup three (x3) Yubikeys as (i) a current key,
-(ii) a spare, and (iii) a last resort backup key, stored securely off-site.
+The approach taken here is to setup three (x3) Yubikeys as (i) a current key
+(main security key), (ii) a hot spare, and (iii) a last resort cold spare key,
+stored securely off-site.
+
+## Setup
+
+Install the following:
+
+```
+# Fedora 34
+sudo dnf install gnupg pinentry ccid yubikey-manager-qt yubikey-manager yubikey-personalization-gui pam-u2f libfido2
+
+# Arch
+sudo pacman -S gnupg pinentry libusb-compat pcsclite ccid yubikey-manager-qt yubikey-manager yubikey-personalization yubikey-personalization-gui yubico-pam pam-u2f libfido2
+```
 
 ## Generating a GPG Key
 
@@ -47,6 +60,33 @@ locally.
 ```
 gpg2 --delete-secret-key EBC48BA7843592C3
 ```
+
+## Exporting the SSH public-key from the Yubikey
+Now you tell the SSH auth socket to connect to gpg agent in your shell config.
+Use the appropriate configuration, depending on your choice of shell:
+
+```
+# fish: ~/.config/fish/config.fish
+gpgconf --launch gpg-agent
+set gpg_socket (gpgconf --list-dirs agent-ssh-socket)
+set -x SSH_AUTH_SOCK $gpg_socket
+
+# Z-shell: ~/.zshrc
+export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+gpgconf --launch gpg-agent
+```
+
+In order to use SSH, you need to share your public key with the remote host. You
+can run `ssh-add -L` to list your public keys and copy it manually, as shown
+below:
+
+```
+$ ssh-add -l
+256 SHA256:osIdSEalN4U4ib8wTqpdu1OWKvNTPzIDSZNi58s6AAs cardno:000605762380 (ED25519)
+```
+
+OR you can run `ssh-add -L >> ~/public_ssh_keys.txt` and copy the key that
+references your Yubikey with the correct card no.
 
 ## Switching between two or more Yubikeys
 
