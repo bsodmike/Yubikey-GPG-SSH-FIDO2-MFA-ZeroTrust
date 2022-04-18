@@ -100,3 +100,25 @@ Run the following command to allow the currently inserted key to be used. [Refer
 ```
 gpg-connect-agent "scd serialno" "learn --force" /bye
 ```
+
+## Troubleshooting connectivity
+
+If you find that you cannot access your card or you get errors like
+
+```
+$ gpg2 --card-status
+gpg: selecting card failed: No such device
+gpg: OpenPGP card not available: No such device
+
+$ gpg-connect-agent "scd serialno" "learn --force" /bye
+ERR 100696144 No such device <SCD>
+ERR 100663406 Card removed <SCD>
+```
+
+This can be fixed by running
+
+```
+sudo systemctl restart pcscd                                                                                        16:36:43
+sudo kill scdaemon                                                                                                  16:37:47
+$ gpg2 --card-status
+```
