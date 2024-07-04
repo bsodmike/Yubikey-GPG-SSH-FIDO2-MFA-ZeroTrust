@@ -16,8 +16,8 @@
 
 # Safety and portability
 set -eu
-set -o posix || true #notably dash doesn't support this
-set -o pipefail || true #not technically posix but widely supported
+#set -o posix || true #notably dash doesn't support this
+#set -o pipefail || true #not technically posix but widely supported
 
 # Backup targets -- set these or the master key will be deleted permanently
 output="$3" #by default, specify as "/mnt"
@@ -172,22 +172,45 @@ gpg	--armor				\
 	--export	"$fpr"		\
 	>"gpg-${fpr}-$(date +%F).asc"
 
+echo "Starting copy"
+
+echo "$GNUPGHOME"
+ls -la "$GNUPGHOME"
+
+mkdir "$3"
+cd "$3"
+mkdir -p "$pub1"
+mkdir -p "$pub2"
+mkdir -p "$crypt1"
+mkdir -p "$crypt2"
+
 # Copy public key to unencrypted store
-for pub_key in "gpg-${fpr}-"*".asc"; do
-	cp "$pub_key" "$pub1/$pub_key"
-	cp "$pub_key" "$pub2/$pub_key"
+for pub_key in "$GNUPGHOME/gpg-${fpr}-"*".asc"; do
+	echo "Path: $GNUPGHOME/$pub_key"
+	echo "Output Path: $pub1"
+
+	cp "$pub_key" "$pub1"
+	cp "$pub_key" "$pub2"
 done
+
+echo "Progress:"
+tree -L 2 "$3"
 
 # Copy revocation certificates to unencrypted store
-for rev_cert in "revoke-"*"-${fpr}.asc"; do
-	cp "$rev_cert" "$pub1/$rev_cert"
-	cp "$rev_cert" "$pub2/$rev_cert"
+for rev_cert in "$GNUPGHOME/revoke-"*"-${fpr}.asc"; do
+	cp "$rev_cert" "$pub1"
+	cp "$rev_cert" "$pub2"
 done
 
+echo "Progress:"
+tree -L 2 "$3"
+
+echo "Copy completed!"
+
 # Must back up to encrypted store before copying to yubi
-tar -czf "backup-$(date +%F).tar.gz" *
-cp "backup-"*".tar.gz" "$crypt1/backup_$(date +%F).tar.gz"
-cp "backup-"*".tar.gz" "$crypt2/backup-$(date +%F).tar.gz"
+tar -czf "$3/backup-$(date +%F).tar.gz" $GNUPGHOME
+cp "$3/backup-$(date +%F).tar.gz" "$crypt1/backup-$(date +%F).tar.gz"
+cp "$3/backup-$(date +%F).tar.gz" "$crypt2/backup-$(date +%F).tar.gz"
 
 echo ""
 echo "WRITE THIS DOWN IN A SECURE PLACE: $passphrase"
