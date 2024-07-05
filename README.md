@@ -59,12 +59,12 @@ Here are some great notes on how to achieve this:
 - https://github.com/drduh/YubiKey-Guide?tab=readme-ov-file#using-yubikey
 - https://github.com/drduh/YubiKey-Guide?tab=readme-ov-file#verify-transfer
 
-Also verify the `C` or `SC` primary key and all "sub-keys" have been moved to a `smart card` such as a Yubikey. Do this with `gpg -K` and the `>` after a tag indicates the key is stored on a smart card.
+Also verify the `C` or `SC` primary key and all "sub-keys" have been moved to a `smart card` such as a Yubikey. Do this with `gpg -K` and the `>` after a tag indicates those keys are stored on a smart card, and in this case, your Yubikey.
 
-`sec#` indicates the corresponding key is not available (the Certify key is offline). This is equally critical.  Once done correctly, `gpg -K` would look like
+Once done correctly, `gpg -K` would look like
 
 ```
-sec   rsa4096/0xF0F2CFEB04341FB5 2024-01-01 [C]
+sec>   rsa4096/0xF0F2CFEB04341FB5 2024-01-01 [C]
       Key fingerprint = 4E2C 1FA3 372C BA96 A06A  C34A F0F2 CFEB 0434 1FB5
 uid                   [ultimate] YubiKey User <yubikey@example>
 ssb>  rsa4096/0xB3CD10E502E19637 2024-01-01 [S] [expires: 2026-05-01]
@@ -72,11 +72,11 @@ ssb>  rsa4096/0x30CBE8C4B085B9F7 2024-01-01 [E] [expires: 2026-05-01]
 ssb>  rsa4096/0xAD9E24E1B8CB9600 2024-01-01 [A] [expires: 2026-05-01]
 ```
 
-And `gpg --card-status` should have the `sec#` and `>` like this
+And `gpg --card-status` should have the `>` markers like this
 
 ```
 General key info..: sub  rsa4096/0xB3CD10E502E19637 2024-01-01 YubiKey User <yubikey@example>
-sec#  rsa4096/0xF0F2CFEB04341FB5  created: 2024-01-01  expires: never
+sec>  rsa4096/0xF0F2CFEB04341FB5  created: 2024-01-01  expires: never
 ssb>  rsa4096/0xB3CD10E502E19637  created: 2024-01-01  expires: 2026-05-01
                                   card-no: 0006 05553211
 ssb>  rsa4096/0x30CBE8C4B085B9F7  created: 2024-01-01  expires: 2026-05-01
@@ -85,11 +85,12 @@ ssb>  rsa4096/0xAD9E24E1B8CB9600  created: 2024-01-01  expires: 2026-05-01
                                   card-no: 0006 05553211
 ```
 
+However, if you see  `sec#`, this indicates the corresponding key is not available (it is offline) and you've deleted it.  This will cause problems with your Yubikey being detected.  To fix this, you should re-import your private key, and transfer them to your Yubikey till you see the `>` marker for the Certificate (C) and all sub-keys.  Your local host will keep a reference to those keys now being on your Yubikey via its keygrip.
 
-### Removing the local (private) secret key
 
-Once all the keys are prepared, make sure to delete the `secrete key`, held
-locally.
+### Removing the local (private) secret key - Caution! See the section above first!
+
+You can optionally delete the `secrete key`, held locally - but beware, this will break any references to keys moved over to your Yubikey.
 
 ```
 gpg2 --delete-secret-key EBC48BA7843592C3
