@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/bash
 # Run this on an air-gapped computer with an encrypted hard drive to set up GPG keys on your yubikey.
 # Derived from https://github.com/drduh/YubiKey-Guide
 # Assumes OS has already been prepared (packages, services, etc) -- see dr duh guide.
@@ -14,13 +14,75 @@
 # Usage: gpg_gen_yubi.sh name email [output_path]
 ########################################################################
 
-# Safety and portability
 set -eu
-#set -o posix || true #notably dash doesn't support this
-#set -o pipefail || true #not technically posix but widely supported
+
+NOW="$(date +"%d%m%Y-%H:%M:%S%z")"
+HOST_NAME=`hostname`
+PROJECT="gpg-gen"
+LOG_DIR="./gpg-gen-logs"
+
+yell() { echo "$0: $*" >&2; }
+die() { yell "$*"; exit 111; }
+try() { "$@" || die "cannot $*"; }
+
+# purpose: to pass msgs and print them to a log file and terminal
+#  - with datetime
+#  - the type of msg - INFO, ERROR, DEBUG, WARNING
+# usage:
+# do_log "INFO some info message"
+# do_log "ERROR some error message"
+# do_log "DEBUG some debug message"
+# do_log "WARNING some warning message"
+# depts:
+#  - PRODUCT_DIR - the root dir of the sfw project
+#  - PRODUCT - the name of the software project dir
+#  - host_name - the short hostname of the host / container running on
+#------------------------------------------------------------------------------
+
+do_log(){
+  print_ok() {
+      GREEN_COLOR="\033[0;32m"
+      DEFAULT="\033[0m"
+      echo -e "${GREEN_COLOR} [${timestamp_now}] ✔ [OK] ${1:-} ${DEFAULT}"
+  }
+
+  print_warning() {
+      YELLOW_COLOR="\033[33m"
+      DEFAULT="\033[0m"
+      echo -e "${YELLOW_COLOR} ⚠ ${1:-} ${DEFAULT}"
+  }
+
+   print_info() {
+      BLUE_COLOR="\033[0;34m"
+      DEFAULT="\033[0m"
+      echo -e "${BLUE_COLOR} ℹ ${1:-} ${DEFAULT}"
+  }
+
+  print_fail() {
+      RED_COLOR="\033[0;31m"
+      DEFAULT="\033[0m"
+      echo -e "${RED_COLOR} ❌ [NOK] ${1:-}${DEFAULT}"
+  }
+
+  type_of_msg=$(echo $*|cut -d" " -f1)
+  msg="$(echo $*|cut -d" " -f2-)"
+  log_dir="${LOG_DIR:-}" ; mkdir -p $log_dir
+  log_file="$log_dir/${PROJECT:-}."$(date "+%d%m%Y")'.log'
+  msg=" [$type_of_msg] `date "+%d-%b-%Y %H:%M:%S %Z"` [${PROJECT:-}][@${HOST_NAME:-}] [$$] $msg "
+  case "$type_of_msg" in
+    'FATAL') print_fail "$msg" | tee -a $log_file ;;
+    'ERROR') print_fail "$msg" | tee -a $log_file ;;
+    'WARNING') print_warning "$msg" | tee -a $log_file ;;
+    'INFO') print_info "$msg" | tee -a $log_file ;;
+    'OK') print_ok "$msg" | tee -a $log_file ;;
+    *) echo "$msg" | tee -a $log_file ;;
+  esac
+}
+
+do_log "INFO Initializing..."
 
 # Backup targets -- set these or the master key will be deleted permanently
-output="$3" #by default, specify as "/mnt"
+output="${@:$#}" #by default, specify as "/mnt"
 crypt1="$output/crypt1" #entire GNUPGHOME directory is backed up to $crypt1 and $crypt2
 crypt2="$output/crypt2"
 pub1="$output/pub1" #public and revocation keys are copied to $pub1 and $pub2
@@ -31,189 +93,216 @@ export GNUPGHOME="$(mktemp -d)"
 chmod 0700 "$GNUPGHOME"
 name="$1"
 email="$2"
-passphrase="$(	dd if=/dev/urandom bs=1k count=1 2>/dev/null	|
-		LC_ALL=C tr -dc '\41\43-\46\60-\71\74-\132'	|
-		cut -c 1-24						)"
+CERTIFY_PASS=$(LC_ALL=C tr -dc 'A-Z1-9' < /dev/urandom | 		\
+  tr -d "1IOS5U" | fold -w 30 | sed "-es/./ /"{1..26..5} | 		\
+  cut -c2- | tr " " "-" | head -1)
 key_type="ed25519"
 enc_key_type="cv25519"
 subkey_expire='2y'
 
 cd "$GNUPGHOME"
 
-# Configure gpg based on dr duh guide
-printf	'%s\n'												\
-	'personal-cipher-preferences AES256 AES192 AES'							\
-	'personal-digest-preferences SHA512 SHA384 SHA256'						\
-	'personal-compress-preferences ZLIB BZIP2 ZIP Uncompressed'					\
+# Configure gpg using hardened config
+# https://github.com/drduh/config/blob/master/gpg.conf
+printf	'%s\n'													\
+	'personal-cipher-preferences AES256 AES192 AES'				\
+	'personal-digest-preferences SHA512 SHA384 SHA256'			\
+	'personal-compress-preferences ZLIB BZIP2 ZIP Uncompressed'	\
 	'default-preference-list SHA512 SHA384 SHA256 AES256 AES192 AES ZLIB BZIP2 ZIP Uncompressed'	\
 	'cert-digest-algo SHA512'									\
 	's2k-digest-algo SHA512'									\
 	's2k-cipher-algo AES256'									\
-	'charset utf-8'											\
-	'fixed-list-mode'										\
-	'no-comments'											\
-	'no-emit-version'										\
+	'charset utf-8'												\
+	'no-comments'												\
+	'no-emit-version'											\
+	'no-greeting'												\
 	'keyid-format 0xlong'										\
-	'list-options show-uid-validity'								\
-	'verify-options show-uid-validity'								\
-	'with-fingerprint'										\
-	'require-cross-certification'									\
-	'no-symkey-cache'										\
-	'use-agent'											\
-	'throw-keyids'											\
+	'list-options show-uid-validity'							\
+	'verify-options show-uid-validity'							\
+	'with-fingerprint'											\
+	'require-cross-certification'								\
+	'no-symkey-cache'											\
+	'armor' 													\
+	'use-agent'													\
+	'throw-keyids'												\
 	>'gpg.conf'
 
 chmod 0600 'gpg.conf'
 
 # Unattended key generation
-gpg	--batch					\
-	--passphrase	"$passphrase"		\
-	--quick-gen-key	"${name} <${email}>"	\
-			"$key_type"		\
-			'cert'			\
+gpg	--batch														\
+	--passphrase	"$CERTIFY_PASS"								\
+	--quick-gen-key	"${name} <${email}>"						\
+			"$key_type"											\
+			'cert'												\
 			'0'
 
 fpr="$(gpg --list-options 'show-only-fpr-mbox' --list-secret-keys | awk '{print $1}')"
 
-echo "Key-id: $fpr"
+do_log "INFO Key-id: $fpr"
 
-gpg	--batch				\
-	--pinentry-mode	'loopback'	\
-	--passphrase	"$passphrase"	\
-	--quick-add-key	"$fpr"		\
-			"$key_type"	\
-			'sign'		\
+do_log "INFO Adding additional UID to card, if provided..."
+for ((i=3; i<=$# - 1; i++))
+do
+	do_log "INFO Processing email: ${!i}"
+	gpg	--batch														\
+		--pinentry-mode	'loopback'									\
+		--passphrase	"$CERTIFY_PASS"								\
+		--quick-add-uid	"$fpr"										\
+			"${name} <${!i}>"
+done
+
+do_log "INFO Generating sub-keys to Sign (S), Encrypt (E), and Authenticate (A)..."
+
+gpg	--batch														\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--quick-add-key	"$fpr"										\
+			"$key_type"											\
+			'sign'												\
 			"$subkey_expire"
 
-gpg	--batch				\
-	--pinentry-mode	'loopback'	\
-	--passphrase	"$passphrase"	\
-	--quick-add-key	"$fpr"		\
-			"$enc_key_type"	\
-			'encrypt'	\
+gpg	--batch														\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--quick-add-key	"$fpr"										\
+			"$enc_key_type"										\
+			'encrypt'											\
 			"$subkey_expire"
 
-gpg	--batch				\
-	--pinentry-mode	'loopback'	\
-	--passphrase	"$passphrase"	\
-	--quick-add-key	"$fpr"		\
-			"$key_type"	\
-			'auth'		\
+gpg	--batch														\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--quick-add-key	"$fpr"										\
+			"$key_type"											\
+			'auth'												\
 			"$subkey_expire"
 
-echo "Created sub-keys"
+do_log "INFO Completed creating sub-keys."
+do_log "INFO Creating revocaton certificates..."
 
 # Exports
-printf	'%s\n'							\
-	'y'							\
-	'0'							\
-	'This revocation certificate was created pre-emptively'	\
-	''							\
-	'y'							\
-	'y'							|
-gpg	--output	"revoke-no-reason-$fpr.asc"		\
-	--pinentry-mode	'loopback'				\
-	--passphrase	"$passphrase"				\
-	--command-fd	0					\
+printf	'%s\n'													\
+	'y'															\
+	'0'															\
+	'This revocation certificate was created pre-emptively'		\
+	''															\
+	'y'															\
+	'y'	|
+gpg	--output	"revoke-no-reason-$fpr-$(date +"%d%m%Y-%H:%M:%S%z").asc"						\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--command-fd	0											\
 	--gen-revoke	"$fpr"
 
-printf	'%s\n'							\
-	'y'							\
-	'1'							\
-	'This revocation certificate was created pre-emptively'	\
-	''							\
-	'y'							\
-	'y'							|
-gpg	--output	"revoke-compromised-$fpr.asc"		\
-	--pinentry-mode	'loopback'				\
-	--passphrase	"$passphrase"				\
-	--command-fd	0					\
+printf	'%s\n'													\
+	'y'															\
+	'1'															\
+	'This revocation certificate was created pre-emptively'		\
+	''															\
+	'y'															\
+	'y'	|
+gpg	--output	"revoke-compromised-$fpr-$(date +"%d%m%Y-%H:%M:%S%z").asc"					\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--command-fd	0											\
 	--gen-revoke	"$fpr"
 
-printf	'%s\n'							\
-	'y'							\
-	'2'							\
-	'This revocation certificate was created pre-emptively'	\
-	''							\
-	'y'							\
-	'y'							|
-gpg	--output	"revoke-superseded-$fpr.asc"		\
-	--pinentry-mode	'loopback'				\
-	--passphrase	"$passphrase"				\
-	--command-fd	0					\
+printf	'%s\n'													\
+	'y'															\
+	'2'															\
+	'This revocation certificate was created pre-emptively'		\
+	''															\
+	'y'															\
+	'y'	|
+gpg	--output	"revoke-superseded-$fpr-$(date +"%d%m%Y-%H:%M:%S%z").asc"					\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--command-fd	0											\
 	--gen-revoke	"$fpr"
 
-printf	'%s\n'							\
-	'y'							\
-	'3'							\
-	'This revocation certificate was created pre-emptively'	\
-	''							\
-	'y'							\
-	'y'							|
-gpg	--output	"revoke-no-longer-used-$fpr.asc"	\
-	--pinentry-mode	'loopback'				\
-	--passphrase	"$passphrase"				\
-	--command-fd	0					\
+printf	'%s\n'													\
+	'y'															\
+	'3'															\
+	'This revocation certificate was created pre-emptively'		\
+	''															\
+	'y'															\
+	'y'	|
+gpg	--output	"revoke-no-longer-used-$fpr-$(date +"%d%m%Y-%H:%M:%S%z").asc"				\
+	--pinentry-mode	'loopback'									\
+	--passphrase	"$CERTIFY_PASS"								\
+	--command-fd	0											\
 	--gen-revoke	"$fpr"
 
-gpg	--pinentry-mode		'loopback'	\
-	--passphrase		"$passphrase"	\
-	--armor					\
-	--export-secret-keys	"$fpr"		\
-	>'master.key'
+do_log "INFO Exporting keys to disk..."
 
-gpg	--pinentry-mode		'loopback'	\
-	--passphrase		"$passphrase"	\
-	--armor					\
-	--export-secret-subkeys	"$fpr"		\
-	>'sub.key'
+gpg	--pinentry-mode		'loopback'								\
+	--passphrase		"$CERTIFY_PASS"							\
+	--armor														\
+	--export-secret-keys	"$fpr"								\
+	>"gpg-$fpr-mastersub-$(date +"%d%m%Y-%H:%M:%S%z").key"
 
-gpg	--armor				\
-	--export	"$fpr"		\
-	>"gpg-${fpr}-$(date +%F).asc"
+gpg	--pinentry-mode		'loopback'								\
+	--passphrase		"$CERTIFY_PASS"							\
+	--armor														\
+	--export-secret-subkeys	"$fpr"								\
+	>"gpg-$fpr-sub-$(date +"%d%m%Y-%H:%M:%S%z").key"
 
-echo "Starting copy"
+gpg	--armor														\
+	--export	"$fpr"											\
+	>"gpg-${fpr}-$(date +"%d%m%Y-%H:%M:%S%z")-public.asc"
 
-echo "$GNUPGHOME"
-ls -la "$GNUPGHOME"
 
-mkdir "$3"
-cd "$3"
+do_log "INFO Preparing to archive generated files..."
+
+# Disabled as I do not like the idea of using `rm -rf` in a publicly available script.
+# Use this at your own peril!
+#
+# if test -d $output; then
+# 	read -p "Delete $output? (Y/N) - Choose "N" to delete it manually: " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
+#
+# 	# rm -rf $output
+# fi
+
+if test -d $output; then
+	do_log "ERROR Manually delete $output and run this script again.  Good bye!"
+	exit 1
+fi
+
+mkdir "$output"
 mkdir -p "$pub1"
 mkdir -p "$pub2"
 mkdir -p "$crypt1"
 mkdir -p "$crypt2"
 
-# Copy public key to unencrypted store
-for pub_key in "$GNUPGHOME/gpg-${fpr}-"*".asc"; do
-	echo "Path: $GNUPGHOME/$pub_key"
-	echo "Output Path: $pub1"
+# Change to target dir
+cd "$output"
 
+# Copy public key to unencrypted store
+for pub_key in "$GNUPGHOME/gpg-${fpr}-"*"-public.asc"; do
 	cp "$pub_key" "$pub1"
 	cp "$pub_key" "$pub2"
 done
 
-echo "Progress:"
-tree -L 2 "$3"
-
 # Copy revocation certificates to unencrypted store
-for rev_cert in "$GNUPGHOME/revoke-"*"-${fpr}.asc"; do
+for rev_cert in "$GNUPGHOME/revoke-"*"-${fpr}-"*".asc"; do
 	cp "$rev_cert" "$pub1"
 	cp "$rev_cert" "$pub2"
 done
 
-echo "Progress:"
-tree -L 2 "$3"
-
-echo "Copy completed!"
+do_log "INFO Intermediary pre-archival copy completed..."
+tree -L 2 "$output"
 
 # Must back up to encrypted store before copying to yubi
-tar -czf "$3/backup-$(date +%F).tar.gz" $GNUPGHOME
-cp "$3/backup-$(date +%F).tar.gz" "$crypt1/backup-$(date +%F).tar.gz"
-cp "$3/backup-$(date +%F).tar.gz" "$crypt2/backup-$(date +%F).tar.gz"
+cp -r "$pub1" $GNUPGHOME
+tree -L 2 $GNUPGHOME
+
+tar -czf "$output/backup-${fpr}-$(date +"%d%m%Y-%H:%M:%S%z").tar.gz" $GNUPGHOME
+
+do_log "INFO Compressed archive created."
 
 echo ""
-echo "WRITE THIS DOWN IN A SECURE PLACE: $passphrase"
+echo "WRITE THIS DOWN IN A SECURE PLACE: $CERTIFY_PASS"
 echo ""
 
 # Print gpg key details
@@ -225,7 +314,7 @@ cd
 rm -rf "$GNUPGHOME"
 
 printf	'%s\n'								\
-	'WRITE THIS DOWN IN A SECURE PLACE' "$passphrase"		\
+	'WRITE THIS DOWN IN A SECURE PLACE' "$CERTIFY_PASS"		\
 	'Reboot soon and before restoring network connectivity.'	1>&2
 
 # Just cause
