@@ -11,7 +11,7 @@
 # The GPG key passphrase is randomly generated and printed to stderr at the end of the script.
 # Copy the backup tar.gz file to an encrypted drive.
 #
-# Usage: gpg_gen_yubi.sh name email [output_path]
+# Usage: gpg_gen_yubi.sh name email <all extra emails> [output_path]
 ########################################################################
 
 set -eu
