@@ -37,11 +37,6 @@
 
 set -eu
 
-NOW="$(date +"%d%m%Y-%H:%M:%S%z")"
-HOST_NAME=`hostname`
-PROJECT="gpg-gen"
-LOG_DIR="./gpg-gen-logs"
-
 yell() { echo "$0: $*" >&2; }
 die() { yell "$*"; exit 111; }
 try() { "$@" || die "cannot $*"; }
@@ -55,8 +50,7 @@ try() { "$@" || die "cannot $*"; }
 # do_log "DEBUG some debug message"
 # do_log "WARNING some warning message"
 # depts:
-#  - PRODUCT_DIR - the root dir of the sfw project
-#  - PRODUCT - the name of the software project dir
+#  - PROJECT - the root dir of the sfw project
 #  - host_name - the short hostname of the host / container running on
 #------------------------------------------------------------------------------
 
@@ -100,10 +94,15 @@ do_log(){
   esac
 }
 
+NOW="$(date +"%d%m%Y-%H:%M:%S%z")"
+HOST_NAME=`hostname`
+PROJECT="gpg-gen"
+LOG_DIR="./gpg-gen-logs"
+
 do_log "INFO Initializing..."
 
 # Backup targets -- set these or the master key will be deleted permanently
-output="${@:$#}" #by default, specify as "/mnt"
+output="`pwd`/output" #by default, specify as "/mnt"
 crypt1="$output/crypt1" #entire GNUPGHOME directory is backed up to $crypt1 and $crypt2
 crypt2="$output/crypt2"
 pub1="$output/pub1" #public and revocation keys are copied to $pub1 and $pub2
@@ -114,9 +113,9 @@ export GNUPGHOME="$(mktemp -d)"
 chmod 0700 "$GNUPGHOME"
 name="$1"
 email="$2"
-CERTIFY_PASS=$(LC_ALL=C tr -dc 'A-Z1-9' < /dev/urandom | 		\
-  tr -d "1IOS5U" | fold -w 30 | sed "-es/./ /"{1..26..5} | 		\
-  cut -c2- | tr " " "-" | head -1)
+CERTIFY_PASS="$(	dd if=/dev/urandom bs=1k count=1 2>/dev/null	|
+		LC_ALL=C tr -dc '\41\43-\46\60-\71\74-\132'	|
+		cut -c 1-24						)"
 key_type="ed25519"
 enc_key_type="cv25519"
 subkey_expire='2y'
