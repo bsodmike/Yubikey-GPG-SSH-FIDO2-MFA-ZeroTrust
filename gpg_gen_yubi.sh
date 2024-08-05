@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/opt/homebrew/bin/bash
 # Run this on an air-gapped computer with an encrypted hard drive to set up GPG keys on your yubikey.
 # Derived from https://github.com/drduh/YubiKey-Guide
 # Assumes OS has already been prepared (packages, services, etc) -- see dr duh guide.
@@ -12,7 +12,8 @@
 # Copy the backup tar.gz file to an encrypted drive.
 #
 # Usage: gpg_gen_yubi.sh name email <all extra emails> [output_path]
-#
+# On Mac, make sure to upgrade the default system bash to v5.2.x or greater.
+# 
 # Copyright (c) Michael de Silva
 # Profile: https://desilva.io/about
 # Email: mike.cto@securecloudsolutions.io // PGP: https://bit.ly/3W8u9R8
@@ -113,9 +114,9 @@ export GNUPGHOME="$(mktemp -d)"
 chmod 0700 "$GNUPGHOME"
 name="$1"
 email="$2"
-CERTIFY_PASS="$(	dd if=/dev/urandom bs=1k count=1 2>/dev/null	|
-		LC_ALL=C tr -dc '\41\43-\46\60-\71\74-\132'	|
-		cut -c 1-24						)"
+CERTIFY_PASS=$(LC_ALL=C tr -dc 'A-Z1-9' < /dev/urandom | \
+  tr -d "1IOS5U" | fold -w 30 | sed "-es/./ /"{1..26..5} | \
+  cut -c2- | tr " " "-" | head -1)
 key_type="ed25519"
 enc_key_type="cv25519"
 subkey_expire='2y'
@@ -290,38 +291,15 @@ if test -d $output; then
 fi
 
 mkdir "$output"
-mkdir -p "$pub1"
-mkdir -p "$pub2"
-mkdir -p "$crypt1"
-mkdir -p "$crypt2"
 
-# Change to target dir
-cd "$output"
-
-# Copy public key to unencrypted store
-for pub_key in "$GNUPGHOME/gpg-${fpr}-"*"-public.asc"; do
-	cp "$pub_key" "$pub1"
-	cp "$pub_key" "$pub2"
-done
-
-# Copy revocation certificates to unencrypted store
-for rev_cert in "$GNUPGHOME/revoke-"*"-${fpr}-"*".asc"; do
-	cp "$rev_cert" "$pub1"
-	cp "$rev_cert" "$pub2"
-done
-
-do_log "INFO Intermediary pre-archival copy completed..."
-tree -L 2 "$output"
-
-# Must back up to encrypted store before copying to yubi
-cp -r "$pub1" $GNUPGHOME
+do_log "INFO List of files being archived saved in `archive_list.txt`"
 tree -L 2 $GNUPGHOME
+tree -L 2 $GNUPGHOME > $GNUPGHOME/archive_list.txt
 
+# Create archive
 tar -czf "$output/backup-${fpr}-$(date +"%d%m%Y-%H:%M:%S%z").tar.gz" $GNUPGHOME
 
-do_log "INFO Compressed archive created."
-
-echo ""
+echo -e "\n\n"
 echo "WRITE THIS DOWN IN A SECURE PLACE: $CERTIFY_PASS"
 echo ""
 
@@ -333,6 +311,7 @@ cd
 
 rm -rf "$GNUPGHOME"
 
+echo ""
 printf	'%s\n'								\
 	'WRITE THIS DOWN IN A SECURE PLACE' "$CERTIFY_PASS"		\
 	'Reboot soon and before restoring network connectivity.'	1>&2
