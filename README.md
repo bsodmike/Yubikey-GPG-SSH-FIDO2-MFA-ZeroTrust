@@ -102,6 +102,42 @@ As a bare minimum, enable the `enc` key usage, so that it requires a physical to
 ```
 UIF setting ......: Sign=off Decrypt=on Auth=off
 ```
+### GPG for SSH
+
+The GPG keygrip will generate an entirely new SSH keypair when you move GPG keys to the card, so remember to replace the public key when using the card to authenticate your SSH sessions!
+
+
+Running `gpg -K --with-keygrip` will show the keygrip details, similar to below:
+
+```shell
+ssb>  ed25519 2021-06-30 [A]
+      Keygrip = <a-redacted-string>
+```
+
+Echo it in
+
+```shell
+echo <a-redacted-string> >> ~/.gnupg/sshcontrol
+```
+
+Now you tell the SSH auth socket to connect to gpg agent in your shell config
+
+```shell
+# ~/.zshrc - Z shell
+export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+gpgconf --launch gpg-agent
+
+# Fish shell
+gpgconf --launch gpg-agent
+set gpg_socket (gpgconf --list-dirs agent-ssh-socket)
+set -x SSH_AUTH_SOCK $gpg_socket
+```
+
+In order to use SSH, you need to share your public key with the remote host. You have two options. First, you can run ssh-add -L to list your public keys and copy it manually to the remote host OR you may also use ssh-copy-id rom this perspective, nothing has changed.
+
+### GPG for GIT
+
+TBD
 
 ### Removing the local (private) secret key - Caution! See the section above first!
 
