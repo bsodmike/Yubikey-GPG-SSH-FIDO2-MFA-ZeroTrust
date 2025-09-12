@@ -87,6 +87,21 @@ ssb>  rsa4096/0xAD9E24E1B8CB9600  created: 2024-01-01  expires: 2026-05-01
 
 However, if you see  `sec#`, this indicates the corresponding key is not available (it is offline) and you've deleted it.  This will cause problems with your Yubikey being detected.  To fix this, you should re-import your private key, and transfer them to your Yubikey till you see the `>` marker for the Certificate (C) and all sub-keys.  Your local host will keep a reference to those keys now being on your Yubikey via its keygrip.
 
+### Use `ykman` to set the openpgp touch requirements
+
+Run `pip install ykman` to install with pip in a python venv, or refer to the online docs to install with Homebrew etc (on Mac).
+
+```
+ykman openpgp keys set-touch aut on
+ykman openpgp keys set-touch sig on
+ykman openpgp keys set-touch enc on # <-- enable this
+```
+
+As a bare minimum, enable the `enc` key usage, so that it requires a physical touch of the device. You'll see the following if you run `gpg --card-status` with this enabled:
+
+```
+UIF setting ......: Sign=off Decrypt=on Auth=off
+```
 
 ### Removing the local (private) secret key - Caution! See the section above first!
 
