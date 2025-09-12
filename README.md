@@ -25,18 +25,20 @@ sudo pacman -S gnupg pinentry libusb-compat pcsclite ccid yubikey-manager-qt yub
 
 ## Generating a GPG Key
 
-Make sure you replace the placeholders below to generate the GPG key, 
+Make sure you replace the placeholders below to generate the GPG key,
 
 ```
 ./gpg_gen_yubi.sh "Your Name" "your.email@gmail.com" "/mnt"
 ```
 
-This script will print the `passphrase` that's automatically generated.  You
+This script will print the `passphrase` that's automatically generated. You
 will need to store this securely; if you loose this passphrase, you will not be
-able to use your key anymore.
+able to use your key any more.
 
-Make sure you backup both the contents in `crypt1` and `pub1`, especially the
-revocation certificates.
+> [!IMPORTANT]  
+> Make sure you backup **everything in `./output` as well as the automatically generated passphrase**. This passphrase is required to import your new GPG key into your local keyring.
+>
+> Ensure to backup your recovery pack in multiple places. Remember that whenever you rotate keys onto your Yubikey, it wipes them from your local keyring. You will constantly need to access your backup to restore your private key(s) for usage and/or moving them to other Yubikeys, and of course, disaster recovery.
 
 ## Uploading your key
 
@@ -48,6 +50,18 @@ gpg2 --keyserver keys.openpgp.org --send-keys EBC48BA7843592C3
 # validate your email on the keyserver, check your email for the validation
 # link
 gpg2 --export your.email@gmail.com |curl -T - https://keys.openpgp.org
+```
+
+## Revoking a key
+
+The script in this repo generated revocation certificates as part of the recovery pack.
+
+```shell
+# import one of the revocation certificates
+gpg --import revoke-no-longer-used-EBC48BA7843592C3-05072024-12:45:28+0530.asc
+
+# upload it to a key server of your choice
+gpg --keyserver keys.openpgp.org --send-keys EBC48BA7843592C3
 ```
 
 ## Copying GPG keys to your Yubikeys
@@ -85,7 +99,7 @@ ssb>  rsa4096/0xAD9E24E1B8CB9600  created: 2024-01-01  expires: 2026-05-01
                                   card-no: 0006 05553211
 ```
 
-However, if you see  `sec#`, this indicates the corresponding key is not available (it is offline) and you've deleted it.  This will cause problems with your Yubikey being detected.  To fix this, you should re-import your private key, and transfer them to your Yubikey till you see the `>` marker for the Certificate (C) and all sub-keys.  Your local host will keep a reference to those keys now being on your Yubikey via its keygrip.
+However, if you see `sec#`, this indicates the corresponding key is not available (it is offline) and you've deleted it. This will cause problems with your Yubikey being detected. To fix this, you should re-import your private key, and transfer them to your Yubikey till you see the `>` marker for the Certificate (C) and all sub-keys. Your local host will keep a reference to those keys now being on your Yubikey via its keygrip.
 
 ### Use `ykman` to set the openpgp touch requirements
 
@@ -102,10 +116,11 @@ As a bare minimum, enable the `enc` key usage, so that it requires a physical to
 ```
 UIF setting ......: Sign=off Decrypt=on Auth=off
 ```
+
 ### GPG for SSH
 
-The GPG keygrip will generate an entirely new SSH keypair when you move GPG keys to the card, so remember to replace the public key when using the card to authenticate your SSH sessions!
-
+> [!TIP]
+> The GPG keygrip will generate an entirely new SSH keypair when you move GPG keys to the card, so remember to replace the public key (Github etc) when using the card to authenticate your SSH sessions!
 
 Running `gpg -K --with-keygrip` will show the keygrip details, similar to below:
 
@@ -123,17 +138,17 @@ echo <a-redacted-string> >> ~/.gnupg/sshcontrol
 Now you tell the SSH auth socket to connect to gpg agent in your shell config
 
 ```shell
-# ~/.zshrc - Z shell
-export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-gpgconf --launch gpg-agent
-
-# Fish shell
+# fish: ~/.config/fish/config.fish
 gpgconf --launch gpg-agent
 set gpg_socket (gpgconf --list-dirs agent-ssh-socket)
 set -x SSH_AUTH_SOCK $gpg_socket
+
+# Z-shell: ~/.zshrc
+export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+gpgconf --launch gpg-agent
 ```
 
-In order to use SSH, you need to share your public key with the remote host. You have two options. First, you can run ssh-add -L to list your public keys and copy it manually to the remote host OR you may also use ssh-copy-id rom this perspective, nothing has changed.
+In order to use SSH, you need to share your public key with the remote host. You have two options. First, you can run `ssh-add -L` to list your public keys and copy it manually to the remote host OR you may also use `ssh-copy-id` from this perspective, nothing has changed.
 
 ### GPG for GIT
 
@@ -146,33 +161,6 @@ You can optionally delete the `secrete key`, held locally - but beware, this wil
 ```
 gpg2 --delete-secret-key EBC48BA7843592C3
 ```
-
-## Exporting the SSH public-key from the Yubikey
-Now you tell the SSH auth socket to connect to gpg agent in your shell config.
-Use the appropriate configuration, depending on your choice of shell:
-
-```
-# fish: ~/.config/fish/config.fish
-gpgconf --launch gpg-agent
-set gpg_socket (gpgconf --list-dirs agent-ssh-socket)
-set -x SSH_AUTH_SOCK $gpg_socket
-
-# Z-shell: ~/.zshrc
-export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-gpgconf --launch gpg-agent
-```
-
-In order to use SSH, you need to share your public key with the remote host. You
-can run `ssh-add -L` to list your public keys and copy it manually, as shown
-below:
-
-```
-$ ssh-add -l
-256 SHA256:osIdSEalN4U4ib8wTqpdu1OWKvNTPzIDSZNi58s6AAs cardno:000605762380 (ED25519)
-```
-
-OR you can run `ssh-add -L >> ~/public_ssh_keys.txt` and copy the key that
-references your Yubikey with the correct card no.
 
 ## Switching between two or more Yubikeys
 
